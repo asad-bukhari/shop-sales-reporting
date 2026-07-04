@@ -1,0 +1,1417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HaFiz PhotoCopy — Sales Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#EEF2F6;
+    --surface:#FFFFFF;
+    --ink:#152233;
+    --muted:#66768C;
+    --border:#DFE6EE;
+    --primary:#1D4E7A;
+    --primary-deep:#123350;
+    --primary-tint:#E7F0F7;
+    --accent:#2F8FB0;
+    --profit:#1E8064;
+    --profit-tint:#E5F5EF;
+    --expense:#A3512B;
+    --expense-tint:#FBEEE7;
+    --negative:#C0392B;
+    --radius:14px;
+    --shadow: 0 1px 2px rgba(21,34,51,0.04), 0 8px 24px -12px rgba(21,34,51,0.12);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{ font-family:'IBM Plex Mono',ui-monospace,monospace; }
+  .display{ font-family:'Space Grotesk',system-ui,sans-serif; }
+
+  #app{ max-width:1180px; margin:0 auto; padding:20px 20px 64px; }
+
+  /* Header */
+  .header{
+    position:relative;
+    overflow:hidden;
+    background:linear-gradient(135deg, var(--primary-deep), var(--primary) 70%);
+    border-radius:var(--radius);
+    padding:26px 26px 22px;
+    color:#fff;
+    margin-bottom:18px;
+    box-shadow:var(--shadow);
+  }
+  .header::after{
+    content:"";
+    position:absolute;
+    top:0; left:-30%;
+    width:22%; height:100%;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent);
+    animation: scan 5.5s linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce){ .header::after{ animation:none; display:none; } }
+  @keyframes scan{
+    0%{ left:-30%; }
+    100%{ left:120%; }
+  }
+  .header-row{
+    display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;
+    position:relative; z-index:1;
+  }
+  .shop-name{ font-size:26px; font-weight:700; letter-spacing:-0.01em; margin:0; }
+  .shop-sub{ margin:4px 0 0; font-size:13px; color:rgba(255,255,255,0.78); }
+  .live-pill{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:11.5px; font-weight:500; color:rgba(255,255,255,0.9);
+    background:rgba(255,255,255,0.14); border:1px solid rgba(255,255,255,0.22);
+    padding:5px 10px; border-radius:999px; margin-top:10px;
+  }
+  .live-dot{ width:6px; height:6px; border-radius:50%; background:#6EE7B7; box-shadow:0 0 0 3px rgba(110,231,183,0.25); }
+
+  .header-actions{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; position:relative; z-index:1;}
+  select, .btn{
+    font-family:'Inter',sans-serif;
+    font-size:13.5px;
+    border-radius:9px;
+    border:1px solid rgba(255,255,255,0.3);
+    padding:9px 12px;
+    background:rgba(255,255,255,0.12);
+    color:#fff;
+    cursor:pointer;
+  }
+  select{ appearance:none; padding-right:28px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='white'/></svg>");
+    background-repeat:no-repeat; background-position:right 10px center;
+  }
+  select option{ color:#111; }
+  .btn-primary{
+    background:#fff; color:var(--primary-deep); font-weight:600; border:none;
+  }
+  .btn-primary:hover{ background:#EAF2F8; }
+
+  /* KPI grid */
+  .kpi-grid{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:18px;
+  }
+  @media (max-width:820px){ .kpi-grid{ grid-template-columns:repeat(2,1fr);} }
+  .kpi-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px 18px; box-shadow:var(--shadow);
+  }
+  .kpi-label{ font-size:12px; color:var(--muted); font-weight:500; text-transform:uppercase; letter-spacing:0.04em; }
+  .kpi-value{ font-family:'Space Grotesk',sans-serif; font-size:26px; font-weight:700; margin-top:6px; }
+  .kpi-delta{ font-size:12px; margin-top:6px; font-weight:500; }
+  .delta-up{ color:var(--profit); }
+  .delta-down{ color:var(--negative); }
+  .delta-flat{ color:var(--muted); }
+
+  /* Panels */
+  .grid-2{ display:grid; grid-template-columns:1.3fr 1fr; gap:14px; margin-bottom:14px; }
+  @media (max-width:900px){ .grid-2{ grid-template-columns:1fr; } }
+  .panel{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:18px; box-shadow:var(--shadow);
+  }
+  .panel-title{ font-size:14.5px; font-weight:600; margin:0 0 2px; }
+  .panel-sub{ font-size:12px; color:var(--muted); margin:0 0 14px; }
+  .chart-wrap{ position:relative; height:220px; display:flex; flex-direction:column; }
+  .chart-wrap.tall{ height:260px; }
+  .chart-wrap svg{ width:100%; flex:1; min-height:0; display:block; overflow:visible; }
+  .chart-empty{ display:flex; align-items:center; justify-content:center; height:100%; color:var(--muted); font-size:13px; }
+  .svg-legend{ display:flex; gap:16px; justify-content:center; flex-wrap:wrap; margin-top:8px; font-size:12px; color:var(--muted); }
+  .svg-legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .swatch{ width:9px; height:9px; border-radius:3px; display:inline-block; }
+  .bar-hover:hover{ opacity:0.85; }
+
+  /* Table */
+  .table-panel{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+  .table-head{ display:flex; justify-content:space-between; align-items:center; padding:16px 18px 10px; }
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  thead th{
+    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.04em;
+    color:var(--muted); font-weight:600; padding:8px 18px; border-top:1px solid var(--border); border-bottom:1px solid var(--border);
+    background:#FAFBFD;
+  }
+  tbody td{ padding:10px 18px; border-bottom:1px solid var(--border); vertical-align:top; }
+  tbody tr{ cursor:pointer; }
+  tbody tr:hover{ background:#F7FAFC; }
+  .num{ font-family:'IBM Plex Mono',monospace; }
+  .pos{ color:var(--profit); }
+  .neg{ color:var(--negative); }
+  .day-pill{
+    display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px;
+    background:var(--primary-tint); color:var(--primary-deep); font-weight:500;
+  }
+  .note-pill{
+    display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px;
+    background:#FDF3E4; color:#8A5A0B; font-weight:500;
+  }
+  .date-header{ cursor:pointer; font-weight:600; }
+  .date-header:hover{ background:#F0F4F8; }
+  .entry-row td{ background:#F8FAFB; padding:12px 18px 12px 36px; }
+  .entry-row .entry-detail-row{ margin-bottom:8px; display:flex; gap:16px; flex-wrap:wrap; }
+  .entry-row .entry-detail-row .num{ font-size:12.5px; }
+  .entry-row .detail-grid{ margin-top:6px; }
+  .detail-row td{ background:#FAFBFD; font-size:12.5px; color:var(--muted); }
+  .detail-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; }
+  .detail-item b{ color:var(--ink); font-weight:600; }
+  .row-actions{ margin-top:10px; }
+  .link-btn{ background:none; border:none; color:var(--primary); font-size:12px; font-weight:600; cursor:pointer; padding:0; margin-right:14px; font-family:inherit; }
+  .link-btn.danger{ color:var(--negative); }
+  .empty-note{ padding:24px 18px; color:var(--muted); font-size:13px; }
+
+  /* Modal */
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(15,23,32,0.45); display:none;
+    align-items:center; justify-content:center; z-index:50; padding:20px;
+  }
+  .modal-backdrop.open{ display:flex; }
+  .modal{
+    background:#fff; border-radius:16px; width:100%; max-width:460px; padding:22px;
+    box-shadow:0 24px 60px rgba(0,0,0,0.25); max-height:88vh; overflow:auto;
+  }
+  .modal h3{ margin:0 0 4px; font-family:'Space Grotesk',sans-serif; }
+  .modal p.sub{ margin:0 0 18px; font-size:12.5px; color:var(--muted); }
+  .field{ margin-bottom:12px; }
+  .field label{ display:block; font-size:12px; font-weight:600; color:var(--ink); margin-bottom:5px; }
+  .field input, .field textarea{
+    width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--border);
+    font-size:13.5px; font-family:'Inter',sans-serif; background:#F9FAFC;
+  }
+  .field input:focus, .field textarea:focus{ outline:2px solid var(--accent); outline-offset:1px; background:#fff; }
+  .field-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .modal-actions{ display:flex; justify-content:space-between; align-items:center; margin-top:18px; gap:10px; }
+  .btn-solid{ background:var(--primary); color:#fff; border:none; padding:10px 16px; border-radius:9px; font-weight:600; font-size:13.5px; cursor:pointer; }
+  .btn-solid:hover{ background:var(--primary-deep); }
+  .btn-ghost{ background:none; border:1px solid var(--border); color:var(--muted); padding:10px 16px; border-radius:9px; font-weight:600; font-size:13.5px; cursor:pointer; }
+  .btn-danger-ghost{ background:none; border:1px solid #F3D3CB; color:var(--negative); padding:10px 16px; border-radius:9px; font-weight:600; font-size:13px; cursor:pointer; }
+  .form-msg{ font-size:12px; margin-top:8px; min-height:14px; }
+  .form-msg.err{ color:var(--negative); }
+  .form-msg.ok{ color:var(--profit); }
+
+  .footer-note{ text-align:center; font-size:11.5px; color:var(--muted); margin-top:20px; }
+  .skeleton{ opacity:0.5; }
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--primary-deep); color:#fff; padding:10px 18px; border-radius:9px;
+    font-size:13px; box-shadow:0 10px 30px rgba(0,0,0,0.2); z-index:80; opacity:0; pointer-events:none;
+    transition:opacity 0.25s ease, transform 0.25s ease;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(-4px); }
+
+  /* Auth overlay */
+  #authOverlay{
+    position:fixed; inset:0; z-index:100;
+    background:rgba(15,23,32,0.7);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+  }
+  #authOverlay.hidden{ display:none; }
+  .auth-card{
+    background:#fff; border-radius:16px; padding:32px; width:100%; max-width:380px;
+    box-shadow:0 24px 60px rgba(0,0,0,0.3); text-align:center;
+  }
+  .auth-card .shop-icon{ font-size:36px; margin-bottom:8px; }
+  .auth-card h2{ font-family:'Space Grotesk',sans-serif; font-size:20px; margin:0 0 4px; color:var(--ink); }
+  .auth-card .sub{ font-size:13px; color:var(--muted); margin:0 0 20px; }
+  .auth-card input{
+    width:100%; padding:11px 12px; border-radius:9px; border:1px solid var(--border);
+    font-size:16px; text-align:center; font-family:'Inter',sans-serif;
+    letter-spacing:6px; background:#F9FAFC; margin-bottom:12px; box-sizing:border-box;
+  }
+  .auth-card input:focus{ outline:2px solid var(--primary); background:#fff; border-color:var(--primary); }
+  .auth-card .auth-err{ font-size:12px; color:var(--negative); min-height:18px; margin-bottom:8px; }
+  .auth-card .btn-solid{ width:100%; padding:11px; font-size:15px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="header">
+    <div class="header-row">
+      <div>
+        <p class="shop-name">HaFiz PhotoCopy</p>
+        <p class="shop-sub">Daily sales &amp; expenses — shared dashboard</p>
+        <div class="live-pill"><span class="live-dot"></span><span id="liveStatus">Connecting to shared data…</span></div>
+      </div>
+      <div class="header-actions">
+        <select id="monthSelect"></select>
+        <button class="btn btn-primary" id="addDayBtn">+ Add day</button>
+        <button class="btn" id="excelBtn" title="Export to Excel">📊 Excel</button>
+        <button class="btn" id="backupBtn" title="Download JSON backup">💾 Backup</button>
+        <button class="btn" id="restoreBtn" title="Restore from backup">📂 Restore</button>
+        <button class="btn" id="settingsBtn" style="font-size:16px; line-height:1; padding:6px 10px;" title="Change password">⚙️</button>
+        <button class="btn" id="logoutBtn" style="font-size:16px; line-height:1; padding:6px 10px;" title="Lock dashboard">🔒</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <div class="grid-2">
+    <div class="panel">
+      <p class="panel-title">Monthly trend</p>
+      <p class="panel-sub">Sales vs net profit, by month</p>
+      <div class="chart-wrap" id="trendChart"></div>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Expense split</p>
+      <p class="panel-sub" id="expenseSub">Shop vs other expenses</p>
+      <div class="chart-wrap" id="expenseChart"></div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="panel" style="grid-column:1 / -1;">
+      <p class="panel-title">Average sales by day of week</p>
+      <p class="panel-sub" id="dowSub">Which weekdays perform best</p>
+      <div class="chart-wrap tall" id="dowChart"></div>
+    </div>
+  </div>
+
+  <div class="table-panel">
+    <div class="table-head">
+      <div>
+        <p class="panel-title" style="margin-bottom:0;">Daily log</p>
+        <p class="panel-sub" style="margin-bottom:0;" id="tableSub">Tap a row for expense detail</p>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th><th>Day</th><th style="text-align:right;">Sale</th>
+            <th style="text-align:right;">Shop exp.</th><th style="text-align:right;">Other exp.</th>
+            <th style="text-align:right;">Net</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="footer-note">HaFiz PhotoCopy — Sales Dashboard. Numbers in Pakistani Rupees (Rs).</p>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <h3 id="modalTitle" class="display">Add a day</h3>
+    <p class="sub">Fill in what you have — sale amount is the only thing required.</p>
+    <form id="dayForm">
+      <input type="hidden" id="entryId" value="" />
+      <div class="field">
+        <label for="fDate">Date</label>
+        <input type="date" id="fDate" required />
+      </div>
+      <div class="field">
+        <label for="fSale">Sale amount (Rs)</label>
+        <input type="number" id="fSale" min="0" step="1" placeholder="e.g. 1500" />
+      </div>
+      <div class="field">
+        <label for="fNote">Note (e.g. holiday, no light) — leave blank on a normal day</label>
+        <input type="text" id="fNote" placeholder="Optional" />
+      </div>
+      <div class="field">
+        <label for="fBestSeller">Best seller of the day</label>
+        <input type="text" id="fBestSeller" placeholder="Optional" />
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="fShopExp">Shop expense (Rs)</label>
+          <input type="number" id="fShopExp" min="0" step="1" placeholder="0" />
+        </div>
+        <div class="field">
+          <label for="fShopExpDetail">Shop expense detail</label>
+          <input type="text" id="fShopExpDetail" placeholder="e.g. Toner" />
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="fOtherExp">Other expense (Rs)</label>
+          <input type="number" id="fOtherExp" min="0" step="1" placeholder="0" />
+        </div>
+        <div class="field">
+          <label for="fOtherExpDetail">Other expense detail</label>
+          <input type="text" id="fOtherExpDetail" placeholder="e.g. Petrol" />
+        </div>
+      </div>
+      <div class="form-msg" id="formMsg"></div>
+      <div class="modal-actions">
+        <div>
+          <button type="button" class="btn-danger-ghost" id="deleteBtn" style="display:none;">Delete entry</button>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn-ghost" id="cancelBtn">Cancel</button>
+          <button type="submit" class="btn-solid" id="saveBtn">Save entry</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="authOverlay">
+  <div class="auth-card">
+    <div class="shop-icon">🖨️</div>
+    <h2>HaFiz PhotoCopy</h2>
+    <p class="sub" id="authSub">Enter password to access the dashboard</p>
+    <input type="password" id="authInput" maxlength="10" placeholder="Password" autocomplete="off" />
+    <div class="auth-err" id="authErr"></div>
+    <button class="btn-solid" id="authBtn">Unlock</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------- Google Drive configuration ----------
+const CONFIG = {
+  CLIENT_ID: '189458775790-5078n6khdh8omhdp2phthp54ckvt9fcp.apps.googleusercontent.com',
+  FILE_NAME: 'hafiz_photocopy_dashboard_data.json',
+  SCOPE: 'https://www.googleapis.com/auth/drive.file',
+};
+
+const INITIAL_DATA = {"2026-05":[{"date":"2026-05-01","day":"Friday","sale":300,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-01"},{"date":"2026-05-02","day":"Saturday","sale":2900,"note":null,"bestSeller":null,"shopExp":3300,"shopExpDetail":"Tonor Refill & Drum & Petrol","otherExp":0,"otherExpDetail":null,"id":"2026-05-02"},{"date":"2026-05-03","day":"Sunday","sale":1640,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":200,"otherExpDetail":"Hair Cut","id":"2026-05-03"},{"date":"2026-05-04","day":"Monday","sale":830,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-04"},{"date":"2026-05-05","day":"Tuesday","sale":1930,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-05"},{"date":"2026-05-06","day":"Wednesday","sale":3110,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":200,"otherExpDetail":"Masjid","id":"2026-05-06"},{"date":"2026-05-07","day":"Thursday","sale":6200,"note":null,"bestSeller":"Print","shopExp":3500,"shopExpDetail":"Copy mate & Internet Package","otherExp":100,"otherExpDetail":"Cheez M","id":"2026-05-07"},{"date":"2026-05-08","day":"Friday","sale":910,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-08"},{"date":"2026-05-09","day":"Saturday","sale":3390,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-09"},{"date":"2026-05-10","day":"Sunday","sale":1720,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-10"},{"date":"2026-05-11","day":"Monday","sale":1380,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":1290,"otherExpDetail":"Petrol","id":"2026-05-11"},{"date":"2026-05-12","day":"Tuesday","sale":2600,"note":null,"bestSeller":null,"shopExp":1900,"shopExpDetail":"A4 Copy mate 2 ream","otherExp":0,"otherExpDetail":null,"id":"2026-05-12"},{"date":"2026-05-13","day":"Wednesday","sale":4340,"note":null,"bestSeller":"Soft  Skil","shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-13"},{"date":"2026-05-14","day":"Thursday","sale":1100,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":100,"otherExpDetail":"Iron","id":"2026-05-14"},{"date":"2026-05-15","day":"Friday","sale":70,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-15"},{"date":"2026-05-16","day":"Saturday","sale":4950,"note":null,"bestSeller":"Photo","shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-16"},{"date":"2026-05-17","day":"Sunday","sale":760,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-17"},{"date":"2026-05-18","day":"Monday","sale":2400,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-18"},{"date":"2026-05-19","day":"Tuesday","sale":3080,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":1400,"otherExpDetail":"Slaai & Mathaai","id":"2026-05-19"},{"date":"2026-05-20","day":"Wednesday","sale":1180,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-20"},{"date":"2026-05-21","day":"Thursday","sale":1950,"note":null,"bestSeller":null,"shopExp":1700,"shopExpDetail":"Shani + juise","otherExp":0,"otherExpDetail":null,"id":"2026-05-21"},{"date":"2026-05-22","day":"Friday","sale":900,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-22"},{"date":"2026-05-23","day":"Saturday","sale":1400,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-23"},{"date":"2026-05-24","day":"Sunday","sale":2100,"note":null,"bestSeller":null,"shopExp":3960,"shopExpDetail":"Bill","otherExp":0,"otherExpDetail":null,"id":"2026-05-24"},{"date":"2026-05-25","day":"Monday","sale":1350,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-25"},{"date":"2026-05-26","day":"Tuesday","sale":250,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":350,"otherExpDetail":"hair & shawarma","id":"2026-05-26"},{"date":"2026-05-27","day":"Wednesday","sale":0,"note":"Eid","bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":1150,"otherExpDetail":"Home","id":"2026-05-27"},{"date":"2026-05-28","day":"Thursday","sale":0,"note":"Eid","bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-28"},{"date":"2026-05-29","day":"Friday","sale":0,"note":"Eid","bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-29"},{"date":"2026-05-30","day":"Saturday","sale":730,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-05-30"},{"date":"2026-05-31","day":"Sunday","sale":2070,"note":null,"bestSeller":null,"shopExp":3000,"shopExpDetail":"Shop Rent","otherExp":0,"otherExpDetail":null,"id":"2026-05-31"}],"2026-06":[{"date":"2026-06-01","day":"Monday","sale":990,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-06-01"},{"date":"2026-06-02","day":"Tuesday","sale":1890,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":140,"otherExpDetail":"Achaar","id":"2026-06-02"},{"date":"2026-06-03","day":"Wednesday","sale":2020,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-06-03"},{"date":"2026-06-04","day":"Thursday","sale":650,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-06-04"},{"date":"2026-06-05","day":"Friday","sale":0,"note":"NO LIGHT","bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-06-05"},{"date":"2026-06-06","day":"Saturday","sale":2590,"note":null,"bestSeller":null,"shopExp":1000,"shopExpDetail":"Photo paper","otherExp":0,"otherExpDetail":null,"id":"2026-06-06"},{"date":"2026-06-07","day":"Sunday","sale":830,"note":null,"bestSeller":null,"shopExp":1500,"shopExpDetail":"Internet package","otherExp":0,"otherExpDetail":null,"id":"2026-06-07"},{"date":"2026-06-08","day":"Monday","sale":1100,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":180,"otherExpDetail":"bottle","id":"2026-06-08"},{"date":"2026-06-09","day":"Tuesday","sale":2040,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":200,"otherExpDetail":"hair","id":"2026-06-09"},{"date":"2026-06-10","day":"Wednesday","sale":860,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-06-10"},{"date":"2026-06-11","day":"Thursday","sale":1820,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-06-11"},{"date":"2026-06-12","day":"Friday","sale":1030,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-06-12"},{"date":"2026-06-13","day":"Saturday","sale":1530,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-06-13"},{"date":"2026-06-14","day":"Sunday","sale":2910,"note":null,"bestSeller":null,"shopExp":500,"shopExpDetail":"XRAY SHEEETS","otherExp":0,"otherExpDetail":null,"id":"2026-06-14"},{"date":"2026-06-15","day":"Monday","sale":2060,"note":null,"bestSeller":null,"shopExp":11200,"shopExpDetail":"Stationary","otherExp":0,"otherExpDetail":null,"id":"2026-06-15"},{"date":"2026-06-16","day":"Tuesday","sale":2150,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-06-16"},{"date":"2026-06-17","day":"Wednesday","sale":1020,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":380,"otherExpDetail":"moeez pkg","id":"2026-06-17"},{"date":"2026-06-18","day":"Thursday","sale":1100,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":500,"otherExpDetail":"shayan pkg","id":"2026-06-18"},{"date":"2026-06-19","day":"Friday","sale":450,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":900,"otherExpDetail":"gousht","id":"2026-06-19"},{"date":"2026-06-20","day":"Saturday","sale":430,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-06-20"},{"date":"2026-06-21","day":"Sunday","sale":1480,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-06-21"},{"date":"2026-06-22","day":"Monday","sale":1070,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-06-22"},{"date":"2026-06-23","day":"Tuesday","sale":1010,"note":null,"bestSeller":null,"shopExp":4431,"shopExpDetail":"bil","otherExp":0,"otherExpDetail":null,"id":"2026-06-23"},{"date":"2026-06-24","day":"Wednesday","sale":750,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-06-24"},{"date":"2026-06-25","day":"Thursday","sale":850,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-06-25"},{"date":"2026-06-26","day":"Friday","sale":0,"note":"chutti","bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-06-26"},{"date":"2026-06-27","day":"Saturday","sale":2140,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":0,"otherExpDetail":null,"id":"2026-06-27"},{"date":"2026-06-28","day":"Sunday","sale":2060,"note":null,"bestSeller":null,"shopExp":0,"shopExpDetail":null,"otherExp":4437,"otherExpDetail":"bill home","id":"2026-06-28"},{"date":"2026-06-29","day":"Monday","sale":1870,"note":null,"bestSeller":null,"shopExp":3000,"shopExpDetail":"rent","otherExp":0,"otherExpDetail":null,"id":"2026-06-29"},{"date":"2026-06-30","day":"Tuesday","sale":3860,"note":null,"bestSeller":null,"shopExp":330,"shopExpDetail":"pkg ","otherExp":0,"otherExpDetail":null,"id":"2026-06-30"}]};
+
+const WEEKDAY_ORDER = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+let state = {
+  months: [],
+  dataByMonth: {},
+  selectedScope: "all",
+  loaded: false
+};
+
+function fmtMoney(n){
+  n = Math.round(n || 0);
+  return "Rs " + n.toLocaleString("en-US");
+}
+function monthLabel(key){
+  const [y,m] = key.split("-").map(Number);
+  return MONTH_NAMES[m-1] + " " + y;
+}
+function weekdayFromDate(dateStr){
+  const d = new Date(dateStr + "T00:00:00");
+  const idx = d.getDay(); // 0 Sun
+  const map = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  return map[idx];
+}
+function showToast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"), 2200);
+}
+
+function generateId() {
+  return Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+}
+
+function findEntryById(id) {
+  for (const monthKey of state.months) {
+    const entry = (state.dataByMonth[monthKey] || []).find(d => d.id === id);
+    if (entry) return entry;
+  }
+  return null;
+}
+
+function migrateEntries() {
+  let changed = false;
+  for (const monthKey of Object.keys(state.dataByMonth)) {
+    const arr = state.dataByMonth[monthKey];
+    for (const entry of arr) {
+      if (!entry.id) {
+        entry.id = entry.date;
+        changed = true;
+      }
+    }
+  }
+  return changed;
+}
+
+// ---------- Authentication ----------
+const AUTH_STORAGE_KEY = 'hafiz_auth_hash';
+
+async function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function checkAuth() {
+  if (sessionStorage.getItem('hafiz_authenticated') === 'true') return true;
+  const storedHash = localStorage.getItem(AUTH_STORAGE_KEY);
+  if (!storedHash) return 'setup';
+  return false;
+}
+
+async function handleAuthSubmit() {
+  const input = document.getElementById('authInput');
+  const err = document.getElementById('authErr');
+  const sub = document.getElementById('authSub');
+  const btn = document.getElementById('authBtn');
+  const password = input.value.trim();
+  if (!password) { err.textContent = 'Enter the password.'; return; }
+  err.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+
+  const storedHash = localStorage.getItem(AUTH_STORAGE_KEY);
+  if (!storedHash) {
+    if (password !== '2854') {
+      err.textContent = 'Wrong password. Try again.';
+      btn.disabled = false;
+      btn.textContent = 'Unlock';
+      return;
+    }
+    const hash = await hashPassword(password);
+    localStorage.setItem(AUTH_STORAGE_KEY, hash);
+    sessionStorage.setItem('hafiz_authenticated', 'true');
+    document.getElementById('authOverlay').classList.add('hidden');
+    initApp();
+  } else {
+    const hash = await hashPassword(password);
+    if (hash === storedHash) {
+      sessionStorage.setItem('hafiz_authenticated', 'true');
+      document.getElementById('authOverlay').classList.add('hidden');
+      initApp();
+    } else {
+      err.textContent = 'Wrong password. Try again.';
+      btn.disabled = false;
+      btn.textContent = 'Unlock';
+      input.value = '';
+      input.focus();
+    }
+  }
+}
+
+document.getElementById('authBtn').addEventListener('click', handleAuthSubmit);
+document.getElementById('authInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') handleAuthSubmit();
+});
+
+// ---------- Storage layer ----------
+async function initStorage() {
+  const statusEl = document.getElementById('liveStatus');
+
+  // Try Google Drive first if we have a token
+  const token = localStorage.getItem('driveAccessToken');
+  if (token) {
+    driveTokenClient = token;
+    const driveData = await readStateFromDrive();
+    if (driveData) {
+      state.months = driveData.months;
+      state.dataByMonth = driveData.dataByMonth;
+      migrateEntries();
+      state.loaded = true;
+      updateDriveStatus(true);
+      return;
+    }
+  }
+
+  // Fallback: try localStorage cache
+  const cached = readFromLocalStorageCache();
+  if (cached && cached.months && cached.dataByMonth) {
+    state.months = cached.months;
+    state.dataByMonth = cached.dataByMonth;
+    migrateEntries();
+    state.loaded = true;
+    statusEl.textContent = 'Offline mode (cached data) — sign in to Google Drive for persistence';
+    updateDriveStatus(false);
+    return;
+  }
+
+  // Last resort: window.storage (legacy) or INITIAL_DATA
+  try {
+    let monthsResult;
+    try { monthsResult = await window.storage.get('months', true); } catch (e) { monthsResult = null; }
+    if (monthsResult && monthsResult.value) {
+      state.months = JSON.parse(monthsResult.value);
+      for (const m of state.months) {
+        try {
+          const r = await window.storage.get('days:' + m, true);
+          state.dataByMonth[m] = r && r.value ? JSON.parse(r.value) : (INITIAL_DATA[m] || []);
+        } catch (e) {
+          state.dataByMonth[m] = INITIAL_DATA[m] || [];
+        }
+      }
+    } else {
+      state.months = Object.keys(INITIAL_DATA).sort();
+      state.dataByMonth = JSON.parse(JSON.stringify(INITIAL_DATA));
+    }
+    statusEl.textContent = 'Loaded from shared storage — sign in to Google Drive for persistence';
+  } catch (e) {
+    console.error('Storage init failed, using INITIAL_DATA', e);
+    state.months = Object.keys(INITIAL_DATA).sort();
+    state.dataByMonth = JSON.parse(JSON.stringify(INITIAL_DATA));
+    statusEl.textContent = 'Offline mode — changes may not persist';
+  }
+
+  updateDriveStatus(false);
+  state.loaded = true;
+}
+
+async function persistMonth(monthKey){
+  try { await window.storage.set("days:"+monthKey, JSON.stringify(state.dataByMonth[monthKey]), true); } catch(e) { /* ignore */ }
+  await writeStateToDrive();
+}
+async function persistMonthsList(){
+  try { await window.storage.set("months", JSON.stringify(state.months), true); } catch(e) { /* ignore */ }
+  await writeStateToDrive();
+}
+
+// ---------- Google Drive storage engine ----------
+let driveFileId = localStorage.getItem('driveFileId');
+let driveTokenClient = null;
+
+function getDriveApiBase() {
+  return 'https://www.googleapis.com/drive/v3';
+}
+
+function getDriveUploadBase() {
+  return 'https://www.googleapis.com/upload/drive/v3';
+}
+
+async function driveRequest(url, options = {}) {
+  const token = driveTokenClient;
+  if (!token) throw new Error('Not authenticated');
+  const headers = { 'Authorization': 'Bearer ' + token, ...options.headers };
+  const res = await fetch(url, { ...options, headers });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error('Drive API error: ' + res.status + ' ' + text);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+function getAccessToken() {
+  return new Promise((resolve, reject) => {
+    const stored = localStorage.getItem('driveAccessToken');
+    const expires = localStorage.getItem('driveTokenExpires');
+    if (stored && expires && Date.now() < parseInt(expires, 10)) {
+      resolve(stored);
+      return;
+    }
+    try {
+      window.google?.accounts?.oauth2?.initTokenClient({
+        client_id: CONFIG.CLIENT_ID,
+        scope: CONFIG.SCOPE,
+        callback: (resp) => {
+          if (resp.access_token) {
+            localStorage.setItem('driveAccessToken', resp.access_token);
+            localStorage.setItem('driveTokenExpires', String(Date.now() + (resp.expires_in || 3600) * 1000));
+            resolve(resp.access_token);
+          } else {
+            reject(new Error('OAuth failed'));
+          }
+        },
+        error_callback: (err) => reject(err),
+      }).requestAccessToken();
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+async function initGoogleDrive() {
+  try {
+    const token = await getAccessToken();
+    driveTokenClient = token;
+    return true;
+  } catch (e) {
+    console.warn('Google Drive auth failed', e);
+    return false;
+  }
+}
+
+async function findDriveFile() {
+  const q = encodeURIComponent(`name='${CONFIG.FILE_NAME}' and trashed=false`);
+  const res = await driveRequest(`${getDriveApiBase()}/files?q=${q}&fields=files(id,name)`);
+  return res?.files?.length ? res.files[0].id : null;
+}
+
+async function readDriveFile(fileId) {
+  const res = await driveRequest(`${getDriveApiBase()}/files/${fileId}?alt=media`);
+  return res;
+}
+
+async function createDriveFile(data) {
+  const metadata = { name: CONFIG.FILE_NAME, mimeType: 'application/json' };
+  const form = new FormData();
+  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+  form.append('file', new Blob([JSON.stringify(data)], { type: 'application/json' }));
+  const res = await driveRequest(`${getDriveUploadBase()}/files?uploadType=multipart&fields=id`, {
+    method: 'POST',
+    body: form,
+  });
+  driveFileId = res.id;
+  localStorage.setItem('driveFileId', res.id);
+  return res.id;
+}
+
+async function updateDriveFile(fileId, data) {
+  const res = await driveRequest(`${getDriveUploadBase()}/files/${fileId}?uploadType=media`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return res;
+}
+
+function serializeState() {
+  return {
+    version: 2,
+    updatedAt: new Date().toISOString(),
+    months: state.months,
+    dataByMonth: state.dataByMonth,
+  };
+}
+
+function cacheToLocalStorage(data) {
+  localStorage.setItem('driveCache', JSON.stringify(data));
+  localStorage.setItem('driveCacheTime', String(Date.now()));
+}
+
+function readFromLocalStorageCache() {
+  const cached = localStorage.getItem('driveCache');
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* ignore */ }
+  }
+  return null;
+}
+
+async function writeStateToDrive() {
+  const data = serializeState();
+  cacheToLocalStorage(data);
+  try {
+    if (driveFileId) {
+      await updateDriveFile(driveFileId, data);
+    } else {
+      const id = await findDriveFile();
+      if (id) {
+        driveFileId = id;
+        localStorage.setItem('driveFileId', id);
+        await updateDriveFile(id, data);
+      } else {
+        await createDriveFile(data);
+      }
+    }
+    return true;
+  } catch (e) {
+    console.warn('Drive write failed, saved to cache only', e);
+    return false;
+  }
+}
+
+async function readStateFromDrive() {
+  try {
+    let fileId = driveFileId;
+    if (!fileId) fileId = await findDriveFile();
+    if (!fileId) return null;
+    driveFileId = fileId;
+    localStorage.setItem('driveFileId', fileId);
+    const data = await readDriveFile(fileId);
+    if (data && data.version && data.months && data.dataByMonth) {
+      return data;
+    }
+    return null;
+  } catch (e) {
+    console.warn('Drive read failed', e);
+    return null;
+  }
+}
+
+function driveSignIn() {
+  if (!window.google) { showToast('Google Identity Services not loaded'); return; }
+  const client = window.google.accounts.oauth2.initTokenClient({
+    client_id: CONFIG.CLIENT_ID,
+    scope: CONFIG.SCOPE,
+    callback: (resp) => {
+      if (resp.access_token) {
+        localStorage.setItem('driveAccessToken', resp.access_token);
+        localStorage.setItem('driveTokenExpires', String(Date.now() + (resp.expires_in || 3600) * 1000));
+        driveTokenClient = resp.access_token;
+        updateDriveStatus(true);
+        showToast('Connected to Google Drive');
+        initStorage();
+      }
+    },
+  });
+  client.requestAccessToken({ prompt: 'consent' });
+}
+
+function driveSignOut() {
+  localStorage.removeItem('driveAccessToken');
+  localStorage.removeItem('driveTokenExpires');
+  localStorage.removeItem('driveFileId');
+  driveTokenClient = null;
+  driveFileId = null;
+  updateDriveStatus(false);
+  showToast('Signed out from Google Drive');
+}
+
+function updateDriveStatus(connected) {
+  const el = document.getElementById('liveStatus');
+  if (connected) {
+    el.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#6EE7B7;box-shadow:0 0 0 3px rgba(110,231,183,0.25);margin-right:6px;"></span>Connected to Google Drive';
+  } else if (localStorage.getItem('driveAccessToken')) {
+    el.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#F59E0B;box-shadow:0 0 0 3px rgba(245,158,11,0.25);margin-right:6px;"></span>Google Drive: reconnecting… <button class="link-btn" style="color:#fff;font-size:11px;" id="driveSignInBtn">Sign in</button>';
+    setTimeout(() => {
+      const btn = document.getElementById('driveSignInBtn');
+      if (btn) btn.onclick = driveSignIn;
+    }, 0);
+  } else {
+    el.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#9CA3AF;box-shadow:0 0 0 3px rgba(156,163,175,0.25);margin-right:6px;"></span>Sign in to Google Drive <button class="link-btn" style="color:#fff;font-size:11px;" id="driveSignInBtn">Sign in</button>';
+    setTimeout(() => {
+      const btn = document.getElementById('driveSignInBtn');
+      if (btn) btn.onclick = driveSignIn;
+    }, 0);
+  }
+}
+
+async function upsertDay(entry, originalId) {
+  const monthKey = entry.date.slice(0, 7);
+  if (!state.months.includes(monthKey)) {
+    state.months.push(monthKey);
+    state.months.sort();
+    await persistMonthsList();
+  }
+  if (!state.dataByMonth[monthKey]) state.dataByMonth[monthKey] = [];
+
+  // If editing and date changed, remove entry from old month
+  if (originalId) {
+    const oldEntry = findEntryById(originalId);
+    if (oldEntry && oldEntry.date !== entry.date) {
+      const oldMonth = oldEntry.date.slice(0, 7);
+      if (state.dataByMonth[oldMonth]) {
+        state.dataByMonth[oldMonth] = state.dataByMonth[oldMonth].filter(d => d.id !== originalId);
+        await persistMonth(oldMonth);
+      }
+    }
+  }
+
+  const arr = state.dataByMonth[monthKey];
+  if (originalId) {
+    // Update existing entry — preserve the original ID
+    const idx = arr.findIndex(d => d.id === originalId);
+    entry.id = originalId;
+    if (idx >= 0) arr[idx] = entry;
+    else arr.push(entry);
+  } else {
+    // New entry
+    if (!entry.id) entry.id = generateId();
+    arr.push(entry);
+  }
+  arr.sort((a, b) => a.date.localeCompare(b.date));
+  await persistMonth(monthKey);
+}
+
+async function deleteDay(id) {
+  for (const monthKey of state.months) {
+    const arr = state.dataByMonth[monthKey];
+    if (arr) {
+      const idx = arr.findIndex(d => d.id === id);
+      if (idx >= 0) {
+        arr.splice(idx, 1);
+        await persistMonth(monthKey);
+        return;
+      }
+    }
+  }
+}
+
+// ---------- Derived data ----------
+function scopedDays(){
+  if(state.selectedScope === "all"){
+    return state.months.flatMap(m => state.dataByMonth[m] || []);
+  }
+  return state.dataByMonth[state.selectedScope] || [];
+}
+
+function monthTotals(monthKey){
+  const days = state.dataByMonth[monthKey] || [];
+  const sale = days.reduce((s,d)=>s+(d.sale||0),0);
+  const shopExp = days.reduce((s,d)=>s+(d.shopExp||0),0);
+  const otherExp = days.reduce((s,d)=>s+(d.otherExp||0),0);
+  return { sale, shopExp, otherExp, net: sale-shopExp-otherExp };
+}
+
+// ---------- Rendering ----------
+function populateMonthSelect(){
+  const sel = document.getElementById("monthSelect");
+  const prev = state.selectedScope;
+  sel.innerHTML = "";
+  const optAll = document.createElement("option");
+  optAll.value = "all"; optAll.textContent = "All months";
+  sel.appendChild(optAll);
+  for(const m of state.months){
+    const o = document.createElement("option");
+    o.value = m; o.textContent = monthLabel(m);
+    sel.appendChild(o);
+  }
+  sel.value = state.months.includes(prev) || prev === "all" ? prev : "all";
+  state.selectedScope = sel.value;
+}
+
+function renderKPIs(){
+  const grid = document.getElementById("kpiGrid");
+  const days = scopedDays();
+  const sale = days.reduce((s,d)=>s+(d.sale||0),0);
+  const shopExp = days.reduce((s,d)=>s+(d.shopExp||0),0);
+  const otherExp = days.reduce((s,d)=>s+(d.otherExp||0),0);
+  const net = sale - shopExp - otherExp;
+
+  let delta = null;
+  if(state.selectedScope !== "all"){
+    const idx = state.months.indexOf(state.selectedScope);
+    if(idx > 0){
+      const prevMonth = state.months[idx-1];
+      const prevTotals = monthTotals(prevMonth);
+      if(prevTotals.sale > 0){
+        delta = ((sale - prevTotals.sale) / prevTotals.sale) * 100;
+      }
+    }
+  }
+
+  const cards = [
+    { label:"Total sales", value: fmtMoney(sale), cls:"" },
+    { label:"Shop expenses", value: fmtMoney(shopExp), cls:"" },
+    { label:"Other expenses", value: fmtMoney(otherExp), cls:"" },
+    { label:"Net profit", value: fmtMoney(net), cls: net>=0 ? "pos":"neg" },
+  ];
+
+  grid.innerHTML = cards.map((c,i)=>{
+    let deltaHtml = "";
+    if(i===0 && delta !== null){
+      const up = delta >= 0;
+      deltaHtml = `<div class="kpi-delta ${up?'delta-up':'delta-down'}">${up?'▲':'▼'} ${Math.abs(delta).toFixed(1)}% vs prior month</div>`;
+    } else if(i===0){
+      deltaHtml = `<div class="kpi-delta delta-flat">—</div>`;
+    }
+    return `<div class="kpi-card">
+      <div class="kpi-label">${c.label}</div>
+      <div class="kpi-value ${c.cls}">${c.value}</div>
+      ${deltaHtml}
+    </div>`;
+  }).join("");
+}
+
+// ---------- Lightweight dependency-free SVG chart helpers ----------
+function niceMax(v){
+  if(v <= 0) return 10;
+  const mag = Math.pow(10, Math.floor(Math.log10(v)));
+  const norm = v / mag;
+  let step;
+  if(norm <= 1) step = 1;
+  else if(norm <= 2) step = 2;
+  else if(norm <= 5) step = 5;
+  else step = 10;
+  return step * mag;
+}
+
+function renderTrendChart(){
+  const el = document.getElementById("trendChart");
+  const labels = state.months.map(monthLabel);
+  const sales = state.months.map(m => monthTotals(m).sale);
+  const nets = state.months.map(m => monthTotals(m).net);
+  const highlightIdx = state.months.indexOf(state.selectedScope);
+
+  if(labels.length === 0){
+    el.innerHTML = `<div class="chart-empty">No months recorded yet.</div>`;
+    return;
+  }
+
+  const W = 640, H = 200, padL = 52, padR = 12, padT = 14, padB = 26;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const maxVal = niceMax(Math.max(...sales, ...nets, 1) * 1.15);
+  const n = labels.length;
+  const slot = plotW / n;
+  const barW = Math.min(38, slot * 0.5);
+
+  const yFor = v => padT + plotH - (v / maxVal) * plotH;
+  const xForCenter = i => padL + slot * i + slot/2;
+
+  let gridLines = "";
+  const ticks = 4;
+  for(let t=0;t<=ticks;t++){
+    const val = (maxVal/ticks)*t;
+    const y = yFor(val);
+    gridLines += `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#EEF2F6" stroke-width="1"/>`;
+    gridLines += `<text x="${padL-8}" y="${y+3}" text-anchor="end" font-size="9.5" fill="#8A97A8" font-family="IBM Plex Mono, monospace">${val>=1000? (val/1000).toFixed(0)+"k" : val.toFixed(0)}</text>`;
+  }
+
+  let bars = "", pts = [], labelsSvg = "";
+  sales.forEach((v,i)=>{
+    const x = xForCenter(i) - barW/2;
+    const y = yFor(v);
+    const h = padT + plotH - y;
+    const color = i===highlightIdx ? "#1D4E7A" : "#B9D3E6";
+    bars += `<rect class="bar-hover" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW}" height="${Math.max(h,0).toFixed(1)}" rx="4" fill="${color}"><title>${labels[i]}: ${fmtMoney(v)}</title></rect>`;
+    labelsSvg += `<text x="${xForCenter(i)}" y="${H-6}" text-anchor="middle" font-size="10.5" fill="#66768C" font-family="Inter, sans-serif">${labels[i].split(" ")[0].slice(0,3)}</text>`;
+    pts.push([xForCenter(i), yFor(nets[i])]);
+  });
+
+  const linePath = pts.map((p,i)=> (i===0?"M":"L")+p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ");
+  const dots = pts.map((p,i)=> `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.5" fill="#1E8064"><title>${labels[i]} net: ${fmtMoney(nets[i])}</title></circle>`).join("");
+
+  el.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+      ${gridLines}
+      ${bars}
+      <path d="${linePath}" fill="none" stroke="#1E8064" stroke-width="2"/>
+      ${dots}
+      ${labelsSvg}
+    </svg>
+    <div class="svg-legend">
+      <span><span class="swatch" style="background:#1D4E7A;"></span>Sales</span>
+      <span><span class="swatch" style="background:#1E8064;"></span>Net profit</span>
+    </div>`;
+}
+
+function renderExpenseChart(){
+  const el = document.getElementById("expenseChart");
+  const days = scopedDays();
+  const shopExp = days.reduce((s,d)=>s+(d.shopExp||0),0);
+  const otherExp = days.reduce((s,d)=>s+(d.otherExp||0),0);
+  document.getElementById("expenseSub").textContent =
+    state.selectedScope === "all" ? "Across all recorded months" : ("For " + monthLabel(state.selectedScope));
+
+  if(shopExp === 0 && otherExp === 0){
+    el.innerHTML = `<div class="chart-empty">No expenses recorded for this scope.</div>`;
+    return;
+  }
+
+  const total = shopExp + otherExp;
+  const size = 180, cx = size/2, cy = size/2, r = 62, stroke = 24;
+  const circumference = 2*Math.PI*r;
+  const shopFrac = shopExp/total;
+  const shopLen = circumference * shopFrac;
+  const otherLen = circumference - shopLen;
+
+  el.innerHTML = `
+    <svg viewBox="0 0 ${size} ${size}" preserveAspectRatio="xMidYMid meet">
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#F1E3DA" stroke-width="${stroke}"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#A3512B" stroke-width="${stroke}"
+        stroke-dasharray="${shopLen.toFixed(1)} ${circumference.toFixed(1)}" stroke-dashoffset="0" transform="rotate(-90 ${cx} ${cy})">
+        <title>Shop expenses: ${fmtMoney(shopExp)}</title>
+      </circle>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#E3A98A" stroke-width="${stroke}"
+        stroke-dasharray="${otherLen.toFixed(1)} ${circumference.toFixed(1)}" stroke-dashoffset="${-shopLen.toFixed(1)}" transform="rotate(-90 ${cx} ${cy})">
+        <title>Other expenses: ${fmtMoney(otherExp)}</title>
+      </circle>
+      <text x="${cx}" y="${cy-3}" text-anchor="middle" font-size="15" font-weight="700" fill="#152233" font-family="Space Grotesk, sans-serif">${fmtMoney(total)}</text>
+      <text x="${cx}" y="${cy+14}" text-anchor="middle" font-size="9.5" fill="#66768C" font-family="Inter, sans-serif">total</text>
+    </svg>
+    <div class="svg-legend">
+      <span><span class="swatch" style="background:#A3512B;"></span>Shop ${fmtMoney(shopExp)}</span>
+      <span><span class="swatch" style="background:#E3A98A;"></span>Other ${fmtMoney(otherExp)}</span>
+    </div>`;
+}
+
+function renderDowChart(){
+  const el = document.getElementById("dowChart");
+  const days = scopedDays();
+  document.getElementById("dowSub").textContent =
+    state.selectedScope === "all" ? "Across all recorded months" : ("For " + monthLabel(state.selectedScope));
+
+  const sums = {}, counts = {};
+  WEEKDAY_ORDER.forEach(d=>{ sums[d]=0; counts[d]=0; });
+  days.forEach(d=>{
+    if(!WEEKDAY_ORDER.includes(d.day)) return;
+    sums[d.day]+= (d.sale||0);
+    counts[d.day]+=1;
+  });
+  const avgs = WEEKDAY_ORDER.map(d => counts[d] ? sums[d]/counts[d] : 0);
+
+  if(avgs.every(v=>v===0)){
+    el.innerHTML = `<div class="chart-empty">No sales recorded for this scope.</div>`;
+    return;
+  }
+
+  const maxIdx = avgs.indexOf(Math.max(...avgs));
+  const W = 640, H = 240, padL = 52, padR = 12, padT = 14, padB = 28;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const maxVal = niceMax(Math.max(...avgs) * 1.2);
+  const n = avgs.length;
+  const slot = plotW / n;
+  const barW = Math.min(56, slot * 0.55);
+
+  const yFor = v => padT + plotH - (v / maxVal) * plotH;
+
+  let gridLines = "";
+  const ticks = 4;
+  for(let t=0;t<=ticks;t++){
+    const val = (maxVal/ticks)*t;
+    const y = yFor(val);
+    gridLines += `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#EEF2F6" stroke-width="1"/>`;
+    gridLines += `<text x="${padL-8}" y="${y+3}" text-anchor="end" font-size="9.5" fill="#8A97A8" font-family="IBM Plex Mono, monospace">${val>=1000? (val/1000).toFixed(1)+"k" : val.toFixed(0)}</text>`;
+  }
+
+  let bars = "", labelsSvg = "";
+  avgs.forEach((v,i)=>{
+    const xCenter = padL + slot*i + slot/2;
+    const x = xCenter - barW/2;
+    const y = yFor(v);
+    const h = padT + plotH - y;
+    const color = i===maxIdx ? "#2F8FB0" : "#CFE3EC";
+    bars += `<rect class="bar-hover" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW}" height="${Math.max(h,0).toFixed(1)}" rx="6" fill="${color}"><title>${WEEKDAY_ORDER[i]}: ${fmtMoney(v)} avg</title></rect>`;
+    labelsSvg += `<text x="${xCenter}" y="${H-8}" text-anchor="middle" font-size="11" fill="#66768C" font-family="Inter, sans-serif">${WEEKDAY_ORDER[i].slice(0,3)}</text>`;
+  });
+
+  el.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+      ${gridLines}
+      ${bars}
+      ${labelsSvg}
+    </svg>`;
+}
+
+function renderTable() {
+  const tbody = document.getElementById("tableBody");
+  const sub = document.getElementById("tableSub");
+  const days = [...scopedDays()].sort((a, b) => b.date.localeCompare(a.date));
+  sub.textContent = days.length + " entries — tap a date for details";
+
+  if (days.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-note">No entries yet. Use "+ Add day" to get started.</td></tr>';
+    return;
+  }
+
+  // Group entries by date
+  const groups = {};
+  days.forEach(d => {
+    if (!groups[d.date]) groups[d.date] = [];
+    groups[d.date].push(d);
+  });
+  const dateKeys = Object.keys(groups).sort().reverse();
+
+  let html = "";
+  dateKeys.forEach(date => {
+    const entries = groups[date];
+    const first = entries[0];
+    const totalSale = entries.reduce((s, d) => s + (d.sale || 0), 0);
+    const totalShop = entries.reduce((s, d) => s + (d.shopExp || 0), 0);
+    const totalOther = entries.reduce((s, d) => s + (d.otherExp || 0), 0);
+    const totalNet = totalSale - totalShop - totalOther;
+
+    // Date header row — combined totals
+    html += `<tr class="date-header" data-group-date="${date}">
+      <td class="mono">${date}</td>
+      <td><span class="day-pill">${first.day || ""}</span>${first.note ? ' <span class="note-pill">' + escapeHtml(first.note) + '</span>' : ""}</td>
+      <td class="num" style="text-align:right;">${fmtMoney(totalSale)}</td>
+      <td class="num" style="text-align:right;">${fmtMoney(totalShop)}</td>
+      <td class="num" style="text-align:right;">${fmtMoney(totalOther)}</td>
+      <td class="num" style="text-align:right;"><span class="${totalNet >= 0 ? 'pos' : 'neg'}">${fmtMoney(totalNet)}</span></td>
+    </tr>`;
+
+    // Sub-rows — one per entry, hidden by default
+    entries.forEach(d => {
+      const net = (d.sale || 0) - (d.shopExp || 0) - (d.otherExp || 0);
+      html += `<tr class="entry-row" data-group-parent="${date}" data-entry-id="${d.id}" style="display:none;">
+      <td colspan="6">
+        <div class="entry-detail-row">
+          <span class="num">Sale: ${fmtMoney(d.sale)}</span>
+          <span class="num">Shop: ${fmtMoney(d.shopExp)}</span>
+          <span class="num">Other: ${fmtMoney(d.otherExp)}</span>
+          <span class="num ${net >= 0 ? 'pos' : 'neg'}">Net: ${fmtMoney(net)}</span>
+        </div>
+        <div class="detail-grid">
+          <div class="detail-item"><b>Note:</b> ${d.note ? escapeHtml(d.note) : "—"}</div>
+          <div class="detail-item"><b>Best seller:</b> ${d.bestSeller ? escapeHtml(d.bestSeller) : "—"}</div>
+          <div class="detail-item"><b>Shop expense detail:</b> ${d.shopExpDetail ? escapeHtml(String(d.shopExpDetail)) : "—"}</div>
+          <div class="detail-item"><b>Other expense detail:</b> ${d.otherExpDetail ? escapeHtml(String(d.otherExpDetail)) : "—"}</div>
+        </div>
+        <div class="row-actions">
+          <button class="link-btn" data-edit="${d.id}">Edit entry</button>
+          <button class="link-btn danger" data-delete="${d.id}">Delete entry</button>
+        </div>
+      </td>
+    </tr>`;
+    });
+  });
+
+  tbody.innerHTML = html;
+
+  // Click date-header to toggle sub-rows
+  tbody.querySelectorAll("tr.date-header").forEach(row => {
+    row.addEventListener("click", () => {
+      const date = row.getAttribute("data-group-date");
+      const subRows = tbody.querySelectorAll(`tr.entry-row[data-group-parent="${date}"]`);
+      const isHidden = subRows.length === 0 || subRows[0].style.display === "none";
+      subRows.forEach(r => r.style.display = isHidden ? "table-row" : "none");
+    });
+  });
+
+  // Edit and delete buttons inside sub-rows
+  tbody.querySelectorAll("[data-edit]").forEach(btn => {
+    btn.addEventListener("click", (e) => { e.stopPropagation(); openModalForEdit(btn.getAttribute("data-edit")); });
+  });
+  tbody.querySelectorAll("[data-delete]").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (!confirm("Delete this entry? This can't be undone.")) return;
+      await deleteDay(btn.getAttribute("data-delete"));
+      renderAll();
+      showToast("Entry deleted");
+    });
+  });
+}
+
+function escapeHtml(str){
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function renderAll(){
+  populateMonthSelect();
+  renderKPIs();
+  renderTrendChart();
+  renderExpenseChart();
+  renderDowChart();
+  renderTable();
+}
+
+// ---------- Export / Import ----------
+function exportExcel() {
+  if (typeof XLSX === 'undefined') { showToast('Excel library not loaded'); return; }
+  const days = scopedDays();
+  if (days.length === 0) { showToast('No data to export'); return; }
+
+  const dailyRows = days.sort((a, b) => a.date.localeCompare(b.date)).map(d => ({
+    Date: d.date,
+    Day: d.day,
+    Sale: d.sale || 0,
+    Note: d.note || '',
+    'Best Seller': d.bestSeller || '',
+    'Shop Expense': d.shopExp || 0,
+    'Shop Expense Detail': d.shopExpDetail || '',
+    'Other Expense': d.otherExp || 0,
+    'Other Expense Detail': d.otherExpDetail || '',
+    'Net Profit': (d.sale || 0) - (d.shopExp || 0) - (d.otherExp || 0),
+  }));
+
+  const monthlyRows = state.months.map(m => {
+    const t = monthTotals(m);
+    return {
+      Month: monthLabel(m),
+      'Total Sales': t.sale,
+      'Total Shop Expenses': t.shopExp,
+      'Total Other Expenses': t.otherExp,
+      'Net Profit': t.net,
+    };
+  });
+
+  const wb = XLSX.utils.book_new();
+  wb.SheetNames.push('Daily Sales');
+  wb.Sheets['Daily Sales'] = XLSX.utils.json_to_sheet(dailyRows);
+  wb.SheetNames.push('Monthly Summary');
+  wb.Sheets['Monthly Summary'] = XLSX.utils.json_to_sheet(monthlyRows);
+
+  const dateStr = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, 'hafiz_photocopy_' + dateStr + '.xlsx');
+  showToast('Excel downloaded');
+}
+
+function backupData() {
+  const data = JSON.stringify(serializeState(), null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'hafiz_photocopy_backup_' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Backup downloaded');
+}
+
+function restoreData(file) {
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.months || !data.dataByMonth || !data.version) {
+        showToast('Invalid backup file');
+        return;
+      }
+      if (!confirm('Replace all current data with the backup? This cannot be undone.')) return;
+      state.months = data.months;
+      state.dataByMonth = data.dataByMonth;
+      migrateEntries();
+      await writeStateToDrive();
+      renderAll();
+      showToast('Data restored from backup');
+    } catch (err) {
+      showToast('Could not parse backup file');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function triggerRestore() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = (e) => {
+    if (e.target.files[0]) restoreData(e.target.files[0]);
+  };
+  input.click();
+}
+
+// ---------- Modal ----------
+const backdrop = document.getElementById("modalBackdrop");
+const form = document.getElementById("dayForm");
+const formMsg = document.getElementById("formMsg");
+
+function openModalForAdd(){
+  document.getElementById("modalTitle").textContent = "Add a day";
+  document.getElementById("deleteBtn").style.display = "none";
+  form.reset();
+  document.getElementById("entryId").value = "";
+  document.getElementById("fDate").value = new Date().toISOString().slice(0,10);
+  formMsg.textContent = "";
+  backdrop.classList.add("open");
+}
+
+function openModalForEdit(id) {
+  const entry = findEntryById(id);
+  if (!entry) return;
+  document.getElementById("modalTitle").textContent = "Edit entry";
+  document.getElementById("deleteBtn").style.display = "inline-block";
+  document.getElementById("entryId").value = entry.id;
+  document.getElementById("fDate").value = entry.date;
+  document.getElementById("fSale").value = entry.sale || "";
+  document.getElementById("fNote").value = entry.note || "";
+  document.getElementById("fBestSeller").value = entry.bestSeller || "";
+  document.getElementById("fShopExp").value = entry.shopExp || "";
+  document.getElementById("fShopExpDetail").value = entry.shopExpDetail || "";
+  document.getElementById("fOtherExp").value = entry.otherExp || "";
+  document.getElementById("fOtherExpDetail").value = entry.otherExpDetail || "";
+  formMsg.textContent = "";
+  backdrop.classList.add("open");
+}
+
+function closeModal(){ backdrop.classList.remove("open"); }
+
+document.getElementById("addDayBtn").addEventListener("click", openModalForAdd);
+document.getElementById("cancelBtn").addEventListener("click", closeModal);
+backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) closeModal(); });
+
+document.getElementById("deleteBtn").addEventListener("click", async ()=>{
+  const orig = document.getElementById("entryId").value;
+  if(!orig) return;
+  if(!confirm("Delete this entry? This can't be undone.")) return;
+  await deleteDay(orig);
+  closeModal();
+  renderAll();
+  showToast("Entry deleted");
+});
+
+form.addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  const dateVal = document.getElementById("fDate").value;
+  if(!dateVal){ formMsg.textContent = "Please pick a date."; formMsg.className="form-msg err"; return; }
+  const entry = {
+    date: dateVal,
+    day: weekdayFromDate(dateVal),
+    sale: Number(document.getElementById("fSale").value) || 0,
+    note: document.getElementById("fNote").value.trim() || null,
+    bestSeller: document.getElementById("fBestSeller").value.trim() || null,
+    shopExp: Number(document.getElementById("fShopExp").value) || 0,
+    shopExpDetail: document.getElementById("fShopExpDetail").value.trim() || null,
+    otherExp: Number(document.getElementById("fOtherExp").value) || 0,
+    otherExpDetail: document.getElementById("fOtherExpDetail").value.trim() || null,
+  };
+  const orig = document.getElementById("entryId").value || null;
+  const saveBtn = document.getElementById("saveBtn");
+  saveBtn.disabled = true; saveBtn.textContent = "Saving…";
+  try{
+    await upsertDay(entry, orig);
+    state.selectedScope = entry.date.slice(0,7);
+    closeModal();
+    renderAll();
+    showToast("Saved");
+  }catch(err){
+    formMsg.textContent = "Couldn't save — try again.";
+    formMsg.className = "form-msg err";
+  }
+  saveBtn.disabled = false; saveBtn.textContent = "Save entry";
+});
+
+document.getElementById("monthSelect").addEventListener("change", (e)=>{
+  state.selectedScope = e.target.value;
+  renderKPIs(); renderTrendChart(); renderExpenseChart(); renderDowChart(); renderTable();
+});
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  sessionStorage.removeItem('hafiz_authenticated');
+  location.reload();
+});
+
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  const current = prompt('Current password:');
+  if (!current) return;
+  hashPassword(current).then(currentHash => {
+    if (currentHash !== localStorage.getItem(AUTH_STORAGE_KEY)) {
+      showToast('Wrong password');
+      return;
+    }
+    const newPw = prompt('New password (default: 2854):') || '2854';
+    if (newPw.length < 4) { showToast('Password must be at least 4 characters'); return; }
+    hashPassword(newPw).then(newHash => {
+      localStorage.setItem(AUTH_STORAGE_KEY, newHash);
+      showToast('Password changed');
+    });
+  });
+});
+
+document.getElementById('excelBtn').addEventListener('click', exportExcel);
+document.getElementById('backupBtn').addEventListener('click', backupData);
+document.getElementById('restoreBtn').addEventListener('click', triggerRestore);
+
+// ---------- Boot ----------
+(async function boot() {
+  const authStatus = await checkAuth();
+  if (authStatus === 'setup') {
+    document.getElementById('authSub').textContent = 'Set your password to secure the dashboard';
+    document.getElementById('authBtn').textContent = 'Set Password';
+    document.getElementById('authOverlay').classList.remove('hidden');
+    document.getElementById('authInput').focus();
+    return;
+  }
+  if (!authStatus) {
+    document.getElementById('authOverlay').classList.remove('hidden');
+    document.getElementById('authInput').focus();
+    return;
+  }
+  initApp();
+})();
+
+async function initApp() {
+  await initStorage();
+  if (migrateEntries()) {
+    for (const m of state.months) {
+      await persistMonth(m);
+    }
+  }
+  state.selectedScope = state.months.length ? state.months[state.months.length-1] : "all";
+  renderAll();
+}
+</script>
+</body>
+</html>
